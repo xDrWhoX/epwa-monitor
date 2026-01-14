@@ -67,7 +67,7 @@
                 </div>
                 <div class="flex-1">
                     <input type="text" id="icao-input" value="EPWA" maxlength="4" class="text-8xl font-black tracking-tighter text-white leading-none uppercase">
-                    <p id="station-name" class="text-blue-400 text-sm font-bold tracking-[0.4em] uppercase mt-2">Warszawa Chopin</p>
+                    <p id="station-name" class="text-blue-400 text-sm font-bold tracking-[0.4em] uppercase mt-2">Pobieranie...</p>
                     <div class="flex flex-wrap justify-center gap-2 mt-4">
                         <button class="fav-btn" onclick="quickChange('EPWA')">WARSZAWA</button>
                         <button class="fav-btn" onclick="quickChange('EPMO')">MODLIN</button>
@@ -213,20 +213,6 @@
             return [...new Set(found)];
         }
 
-        function quickChange(icao) {
-            currentStation = icao;
-            document.getElementById('icao-input').value = icao;
-            fetchMetar();
-        }
-
-        const icaoInput = document.getElementById('icao-input');
-        icaoInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                let val = icaoInput.value.trim().toUpperCase();
-                if (val.length === 4) { currentStation = val; fetchMetar(); icaoInput.blur(); }
-            }
-        });
-
         function updateClocks() {
             const now = new Date();
             document.getElementById('clock-local').innerText = now.toLocaleTimeString('pl-PL', { hour12: false });
@@ -240,8 +226,6 @@
             container.innerHTML = "";
             const sections = raw.split(/(TEMPO|BECMG|PROB\d{2})/);
             const mainSection = sections[0];
-            
-            // Pobieranie prawdopodobieństwa PROB dla ikon zmian
             const probMatch = raw.match(/PROB(\d{2})/);
             const probVal = probMatch ? probMatch[1] + "%" : "";
 
@@ -250,9 +234,7 @@
                 let colorClass = "", isActive = false, showProb = false;
                 if (mainSection.includes(c.key)) { colorClass = "text-green-500"; isActive = true; }
                 else if (raw.includes(c.key)) { 
-                    colorClass = "text-blue-400"; 
-                    isActive = true;
-                    // Sprawdź czy zjawisko jest w sekcji z PROB
+                    colorClass = "text-blue-400"; isActive = true;
                     if (probVal && raw.split(/PROB\d{2}/)[1]?.includes(c.key)) showProb = true;
                 }
                 
@@ -272,8 +254,7 @@
         function decodeAviationCode(raw) {
             const detailEl = document.getElementById('taf-tempo-detail');
             detailEl.innerText = "";
-            if (!raw || raw === "Prognoza niedostępna") return raw;
-
+            if (!raw || raw.includes("niedostępna")) return raw;
             const probMatch = raw.match(/PROB(\d{2})/);
             const probStr = probMatch ? ` (${probMatch[1]}%)` : "";
 
@@ -281,15 +262,11 @@
                 const isTempo = raw.includes("TEMPO");
                 const part = isTempo ? raw.split("TEMPO")[1] : raw.split("BECMG")[1];
                 const phenomena = parsePhenomena(part);
-                
                 if (phenomena.length > 0) {
-                    // Dodaj % do każdego zjawiska w opisie tekstowym jeśli PROB istnieje
                     const detailedPhenomena = probMatch ? phenomena.map(p => `${p}${probStr}`) : phenomena;
                     detailEl.innerText = detailedPhenomena.join(" • ");
                 }
-                
-                if (isTempo) return `⚠️ <span class='text-blue-400 font-bold uppercase'>Możliwe czasowo</span>${probStr}`;
-                return `🔄 <span class='text-blue-300 font-bold uppercase'>W zmianie</span>`;
+                return isTempo ? `⚠️ <span class='text-blue-400 font-bold uppercase'>Możliwe czasowo</span>${probStr}` : `🔄 <span class='text-blue-300 font-bold uppercase'>W zmianie</span>`;
             }
             return "✅ <span class='text-green-400 font-bold uppercase'>Prognoza stała</span>";
         }
@@ -303,43 +280,67 @@
                 ]);
                 const mData = (await mRes.json()).data[0];
                 const tData = (await tRes.json()).data?.[0];
-                if(!mData) throw new Error();
-                document.getElementById('station-name').innerText = mData.station.name;
-                updateUI({
-                    raw: mData.raw_text, wind_dir: mData.wind?.degrees ?? 0, wind_spd: mData.wind?.speed_kts ?? 0, wind_gust: mData.wind?.gust_kts ?? 0,
-                    vis: mData.visibility?.meters ?? 9999, temp: mData.temperature?.celsius ?? "--", qnh: mData.barometer?.hpa ?? "--", taf: tData?.raw_text || "Prognoza niedostępna"
-                }, "LIVE");
-            } catch { updateUI(generateDemo(), "DEMO"); }
+                if(mData) {
+                    updateUI(mData, tData);
+                    document.getElementById('status-dot').className = "w-3 h-3 rounded-full active live-dot";
+                    document.getElementById('status-text').innerText = "Live: Połączono";
+                }
+            } catch (e) {
+                document.getElementById('status-dot').className = "w-3 h-3 rounded-full bg-red-500";
+                document.getElementById('status-text').innerText = "Błąd połączenia";
+            }
             finally { setLoading(false); }
         }
 
-        function updateUI(data, mode) {
-            document.getElementById('wind').innerHTML = `${data.wind_dir}° / ${data.wind_spd}${data.wind_gust > 0 ? '-'+data.wind_gust : ''} KT`;
-            document.getElementById('vis').innerText = data.vis >= 9999 ? ">10 km" : `${data.vis} m`;
-            document.getElementById('temp').innerText = `${data.temp}°C`;
-            document.getElementById('qnh').innerText = `${data.qnh} hPa`;
-            document.getElementById('raw-metar').innerText = "METAR: " + data.raw;
-            document.getElementById('tooltip-metar').innerText = data.raw;
-            document.getElementById('taf-text').innerText = "TAF: " + data.taf;
-            document.getElementById('tooltip-taf').innerText = data.taf;
-            document.getElementById('taf-decoded').innerHTML = decodeAviationCode(data.taf);
-            document.getElementById('wind-arrow').style.transform = `rotate(${data.wind_dir}deg)`;
+        function updateUI(metar, taf) {
+            document.getElementById('station-name').innerText = metar.station.name;
+            const windSpd = metar.wind?.speed_kts ?? 0;
+            const windGust = metar.wind?.gust_kts ?? 0;
+            const windDir = metar.wind?.degrees ?? 0;
+
+            document.getElementById('wind').innerHTML = `${windDir}° / ${windSpd}${windGust > 0 ? '-'+windGust : ''} KT`;
+            document.getElementById('vis').innerText = (metar.visibility?.meters ?? 9999) >= 9999 ? ">10 km" : `${metar.visibility.meters} m`;
+            document.getElementById('temp').innerText = `${metar.temperature?.celsius ?? "--"}°C`;
+            document.getElementById('qnh').innerText = `${metar.barometer?.hpa ?? "--"} hPa`;
+            document.getElementById('raw-metar').innerText = "METAR: " + metar.raw_text;
+            document.getElementById('tooltip-metar').innerText = metar.raw_text;
+            document.getElementById('taf-text').innerText = "TAF: " + (taf?.raw_text || "Prognoza niedostępna");
+            document.getElementById('tooltip-taf').innerText = taf?.raw_text || "Brak danych TAF";
+            document.getElementById('taf-decoded').innerHTML = decodeAviationCode(taf?.raw_text || "niedostępna");
+            document.getElementById('wind-arrow').style.transform = `rotate(${windDir}deg)`;
             
-            getTafIcons(data.taf);
-            updateFlightCategory(data.vis, data.raw);
-            updateWeatherVisuals(data.raw);
+            getTafIcons(taf?.raw_text || "");
+            updateFlightCategory(metar.visibility?.meters ?? 9999, metar.raw_text);
+            updateWeatherVisuals(metar.raw_text);
             
-            const age = calculateAge(data.raw);
-            document.getElementById('time-ago').innerText = age.text;
-            const bar = document.getElementById('freshness-bar');
-            bar.className = `w-full h-2 absolute top-0 left-0 transition-all duration-1000 ${age.min < 45 ? 'bg-green-500' : 'bg-red-500'}`;
+            const age = calculateAge(metar.raw_text);
+            document.getElementById('time-ago').innerText = `SPRZED ${age.min} MIN`;
+            document.getElementById('freshness-bar').className = `w-full h-2 absolute top-0 left-0 transition-all duration-1000 ${age.min < 45 ? 'bg-green-500' : 'bg-red-500'}`;
+
+            const windCard = document.getElementById('wind-card');
+            if(windSpd > 15 || windGust > 20) {
+                windCard.classList.add('wind-alarm-active');
+            } else {
+                windCard.classList.remove('wind-alarm-active');
+            }
         }
 
         function updateFlightCategory(vis, raw) {
-            const isIFR = vis < 5000 || raw.match(/(BKN|OVC)0(0\d|1[0-5])/);
-            document.getElementById('flight-category-text').innerText = isIFR ? "IFR" : "VFR";
-            document.getElementById('flight-category-desc').innerText = isIFR ? "Widzialność < 5km lub chmury < 1500ft" : "Warunki do lotów wizualnych";
-            document.getElementById('flight-category-card').className = isIFR ? "p-5 rounded-[2rem] border border-red-500/30 bg-red-500/10 text-red-400 text-center min-h-[120px]" : "p-5 rounded-[2rem] border border-green-500/30 bg-green-500/10 text-green-400 text-center min-h-[120px]";
+            const cloudMatch = raw.match(/(BKN|OVC)0(0\d|1[0-5])/);
+            const isIFR = vis < 5000 || cloudMatch;
+            const el = document.getElementById('flight-category-text');
+            const desc = document.getElementById('flight-category-desc');
+            const card = document.getElementById('flight-category-card');
+            
+            el.innerText = isIFR ? "IFR" : "VFR";
+            
+            if (isIFR) {
+                desc.innerText = vis < 5000 ? "Widzialność poniżej 5km" : "Chmury poniżej 1500ft";
+                card.className = "p-5 rounded-[2rem] border border-red-500/30 bg-red-500/10 text-red-400 text-center min-h-[120px]";
+            } else {
+                desc.innerText = "Warunki do lotów wizualnych";
+                card.className = "p-5 rounded-[2rem] border border-green-500/30 bg-green-500/10 text-green-400 text-center min-h-[120px]";
+            }
         }
 
         function updateWeatherVisuals(raw) {
@@ -347,6 +348,8 @@
             let icon = "bi-cloud-fill", color = "text-slate-400", text = "Zachmurzenie";
             if (raw.includes("TS")) { icon="bi-cloud-lightning-rain-fill"; color="text-yellow-400"; text="Burza"; }
             else if (raw.includes("RA")) { icon="bi-cloud-drizzle-fill"; color="text-blue-400"; text="Deszcz"; }
+            else if (raw.includes("SN")) { icon="bi-cloud-snow-fill"; color="text-blue-200"; text="Śnieg"; }
+            else if (raw.includes("FG") || raw.includes("BR")) { icon="bi-cloud-fog2-fill"; color="text-slate-300"; text="Mgła/Zamglenie"; }
             else if (raw.includes("CAVOK") || raw.includes("SKC")) { icon="bi-sun-fill"; color="text-yellow-500"; text="Czyste niebo"; }
             iconEl.className = `bi ${icon} text-8xl ${color}`;
             descEl.innerText = text;
@@ -354,17 +357,22 @@
 
         function calculateAge(raw) {
             const match = raw.match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
-            if (!match) return { text: "---", min: 0 };
+            if (!match) return { min: 0 };
             const now = new Date();
             const report = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), parseInt(match[1]), parseInt(match[2]), parseInt(match[3])));
-            const diff = Math.floor((now - report) / 60000);
-            return { text: `SPRZED ${diff} MIN`, min: diff };
+            return { min: Math.floor((now - report) / 60000) };
         }
 
-        function generateDemo() { return { raw: "OFFLINE", wind_dir: 0, wind_spd: 0, wind_gust: 0, vis: 0, temp: 0, qnh: 0, taf: "DEMO" }; }
-        function setLoading(s) { const btn = document.querySelector('.bi-arrow-repeat'); if(btn) s ? btn.classList.add('spin-anim') : setTimeout(()=>btn.classList.remove('spin-anim'), 600); }
+        function quickChange(icao) { currentStation = icao; document.getElementById('icao-input').value = icao; fetchMetar(); }
+        function setLoading(s) { const btn = document.querySelector('.bi-arrow-repeat'); s ? btn.classList.add('spin-anim') : setTimeout(()=>btn.classList.remove('spin-anim'), 600); }
+        
+        document.getElementById('icao-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                let val = e.target.value.trim().toUpperCase();
+                if (val.length === 4) { currentStation = val; fetchMetar(); e.target.blur(); }
+            }
+        });
 
-        setInterval(fetchMetar, 600000);
         window.onload = fetchMetar;
     </script>
 </body>
