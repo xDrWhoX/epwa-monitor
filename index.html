@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aviation Live Monitor - Gem Multi-Station</title>
+    <title>Aviation Live Monitor - Gem Master Multi</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     
@@ -29,8 +29,9 @@
         @keyframes spin { 100% { transform: rotate(360deg); } }
         #wind-arrow { display: inline-block; transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
 
+        /* Legendy */
         .legend-tooltip {
-            visibility: hidden; opacity: 0; position: absolute; top: 40px; right: 0;
+            visibility: hidden; opacity: 0; position: absolute; top: 40px; 
             background: rgba(15, 23, 42, 0.99); border: 2px solid #3b82f6;
             padding: 24px; border-radius: 1.5rem; color: white; z-index: 50; 
             width: 320px; transition: all 0.2s ease; box-shadow: 0 20px 40px rgba(0,0,0,0.7);
@@ -47,13 +48,20 @@
         }
         .has-tooltip:hover .tooltip-box { visibility: visible; opacity: 1; bottom: 140px; }
 
-        /* Styl dla inputa ICAO */
         #icao-input {
             background: transparent; border: none; outline: none;
             text-align: center; width: 320px; cursor: pointer;
             transition: color 0.3s;
         }
         #icao-input:focus { color: #3b82f6; cursor: text; }
+
+        .fav-btn {
+            background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(71, 85, 105, 0.3);
+            padding: 6px 14px; border-radius: 9999px; font-size: 11px; font-weight: bold;
+            color: #94a3b8; transition: all 0.2s; cursor: pointer;
+        }
+        .fav-btn:hover { background: #3b82f6; color: white; border-color: #3b82f6; transform: translateY(-2px); }
+        .fav-btn.active-fav { border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
     </style>
 </head>
 <body class="bg-black text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
@@ -61,15 +69,25 @@
     <div class="max-w-6xl w-full bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-slate-800 relative">
         <div id="freshness-bar" class="w-full h-2 bg-slate-700 absolute top-0 left-0 transition-all duration-1000"></div>
 
-        <div class="p-8 pb-6">
+        <div class="p-8 pb-4">
             <div class="flex flex-col md:flex-row justify-between items-center gap-8 px-6 text-center">
                 <div class="flex-1 flex flex-col items-center">
                     <div id="clock-local" class="text-[4.5rem] font-black text-white tracking-tighter mono leading-none">00:00:00</div>
                     <div id="clock-zulu" class="text-blue-400 text-lg font-bold tracking-[0.2em] mono mt-3 w-full text-center">ZULU: 00:00Z</div>
                 </div>
                 <div class="flex-1">
-                    <input type="text" id="icao-input" value="EPWA" maxlength="4" class="text-8xl font-black tracking-tighter text-white leading-none uppercase" title="Kliknij, aby zmienić lotnisko">
+                    <input type="text" id="icao-input" value="EPWA" maxlength="4" class="text-8xl font-black tracking-tighter text-white leading-none uppercase" title="Kliknij, aby wpisać ICAO">
                     <p id="station-name" class="text-blue-400 text-sm font-bold tracking-[0.4em] uppercase mt-2">Warszawa Chopin</p>
+                    
+                    <div class="flex flex-wrap justify-center gap-2 mt-4">
+                        <button class="fav-btn" onclick="quickChange('EPWA')">WARSZAWA</button>
+                        <button class="fav-btn" onclick="quickChange('EPMO')">MODLIN</button>
+                        <button class="fav-btn" onclick="quickChange('EPKK')">KRAKÓW</button>
+                        <button class="fav-btn" onclick="quickChange('EPKT')">KATOWICE</button>
+                        <button class="fav-btn" onclick="quickChange('EPGD')">GDAŃSK</button>
+                        <button class="fav-btn" onclick="quickChange('EPPO')">POZNAŃ</button>
+                        <button class="fav-btn" onclick="quickChange('EPLB')">LUBLIN</button>
+                    </div>
                 </div>
                 <div class="flex-1 flex justify-center md:justify-end">
                     <div class="flex items-center space-x-3 bg-slate-800 px-6 py-3 rounded-full border border-slate-700">
@@ -81,9 +99,19 @@
         </div>
 
         <div class="px-8 grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch mb-8">
-            <div class="flex flex-col items-center justify-center p-6 bg-slate-800/20 rounded-[2.5rem] border border-slate-800/50">
-                <div class="bg-slate-800/50 p-8 rounded-full border border-slate-700/30 shadow-inner mb-6">
+            <div class="flex flex-col items-center justify-center p-6 bg-slate-800/20 rounded-[2.5rem] border border-slate-800/50 relative">
+                <div class="legend-trigger cursor-help bg-slate-800/50 p-8 rounded-full border border-slate-700/30 shadow-inner mb-6 relative">
                     <i id="weather-icon" class="bi bi-cloud-fill text-8xl text-slate-600"></i>
+                    <div class="legend-tooltip font-sans left-1/2 -translate-x-1/2">
+                        <p class="text-xs font-black text-blue-400 uppercase border-b border-blue-900/50 pb-3 mb-3 tracking-widest">Legenda Ikon</p>
+                        <div class="space-y-4">
+                            <div class="flex items-center gap-4"><i class="bi bi-sun-fill text-yellow-500 text-xl"></i><span class="text-xs text-slate-100">Czyste niebo / CAVOK</span></div>
+                            <div class="flex items-center gap-4"><i class="bi bi-cloud-fill text-slate-400 text-xl"></i><span class="text-xs text-slate-100">Zachmurzenie</span></div>
+                            <div class="flex items-center gap-4"><i class="bi bi-cloud-drizzle-fill text-blue-400 text-xl"></i><span class="text-xs text-slate-100">Deszcz (RA)</span></div>
+                            <div class="flex items-center gap-4"><i class="bi bi-cloud-lightning-rain-fill text-yellow-400 text-xl"></i><span class="text-xs text-slate-100">Burza (TS)</span></div>
+                            <div class="flex items-center gap-4"><i class="bi bi-cloud-fog2-fill text-slate-300 text-xl"></i><span class="text-xs text-slate-100">Mgła / Zamglenie (FG/BR)</span></div>
+                        </div>
+                    </div>
                 </div>
                 <p id="weather-desc" class="text-3xl font-bold text-white capitalize mb-2 text-center">Czekam...</p>
                 <p id="time-ago" class="text-xs font-mono text-slate-500 bg-black/40 px-4 py-2 rounded-full border border-slate-800 uppercase tracking-tighter">---</p>
@@ -116,32 +144,17 @@
                     <div class="flex items-center space-x-2 mb-4 legend-trigger cursor-help">
                         <p class="text-xs uppercase text-blue-400 font-bold tracking-widest text-center">Prognoza na dziś</p>
                         <i class="bi bi-info-circle text-blue-400 text-sm"></i>
-                        <div class="legend-tooltip font-sans">
-                            <p class="text-xs font-black text-blue-400 uppercase border-b border-blue-900/50 pb-3 mb-3 tracking-widest">Legenda GEMA</p>
+                        <div class="legend-tooltip font-sans right-0">
+                            <p class="text-xs font-black text-blue-400 uppercase border-b border-blue-900/50 pb-3 mb-3 tracking-widest">Legenda Prognozy (TAF)</p>
                             <div class="space-y-3 mb-4 border-b border-blue-900/30 pb-3">
-                                <div class="flex items-center gap-3 font-bold text-xs">
-                                    <div class="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div> 
-                                    <span class="text-slate-100">Prognoza stała / pewna</span>
-                                </div>
-                                <div class="flex items-center gap-3 font-bold text-xs">
-                                    <div class="w-3 h-3 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"></div> 
-                                    <span class="text-slate-100">Zmiana (TEMPO/BECMG)</span>
-                                </div>
-                                <div class="flex items-center gap-3 font-bold text-xs">
-                                    <i class="bi bi-percent text-blue-300 text-lg"></i> 
-                                    <span class="text-blue-200">Prawdopodobieństwo (PROB)</span>
-                                </div>
+                                <div class="flex items-center gap-3 font-bold text-xs"><div class="w-3 h-3 rounded-full bg-green-500"></div><span class="text-slate-100">Prognoza stała</span></div>
+                                <div class="flex items-center gap-3 font-bold text-xs"><div class="w-3 h-3 rounded-full bg-blue-400"></div><span class="text-slate-100">Zmiana (TEMPO/BECMG)</span></div>
+                                <div class="flex items-center gap-3 font-bold text-xs"><i class="bi bi-percent text-blue-300"></i><span class="text-blue-200">Prawdopodobieństwo (PROB)</span></div>
                             </div>
                             <p class="text-xs font-black text-red-400 uppercase mb-3 tracking-widest">Kategorie lotu:</p>
-                            <div class="space-y-3">
-                                <div class="text-xs font-bold leading-relaxed">
-                                    <span class="text-red-400">IFR:</span> 
-                                    <span class="text-slate-100 font-normal"> Widzialność &lt; 5km LUB chmury (BKN/OVC) poniżej 1500ft.</span>
-                                </div>
-                                <div class="text-xs font-bold leading-relaxed">
-                                    <span class="text-green-400">VFR:</span> 
-                                    <span class="text-slate-100 font-normal"> Pogoda umożliwiająca lot z widocznością ziemi.</span>
-                                </div>
+                            <div class="text-xs space-y-2">
+                                <p><span class="text-red-400">IFR:</span> < 5km widzialności lub chmury < 1500ft.</p>
+                                <p><span class="text-green-400">VFR:</span> Warunki do lotów wizualnych.</p>
                             </div>
                         </div>
                     </div>
@@ -179,7 +192,12 @@
         const API_KEY = "96d7df72f6c749e0b3e21c828f851c02";
         let currentStation = "EPWA";
 
-        // Obsługa zmiany lotniska
+        function quickChange(icao) {
+            currentStation = icao;
+            document.getElementById('icao-input').value = icao;
+            fetchMetar();
+        }
+
         const icaoInput = document.getElementById('icao-input');
         icaoInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -189,7 +207,7 @@
                     icaoInput.blur();
                     fetchMetar();
                 } else {
-                    alert("Wprowadź poprawny 4-literowy kod ICAO");
+                    alert("Wprowadź 4-literowy kod ICAO");
                     icaoInput.value = currentStation;
                 }
             }
@@ -241,9 +259,9 @@
             if (!raw || raw === "Prognoza niedostępna") return raw;
             const probMatch = raw.match(/PROB(\d{2})/);
             const probVal = probMatch ? ` (${probMatch[1]}%)` : "";
-            if (raw.includes("TEMPO")) return `⚠️ <span class='text-blue-400 font-bold uppercase'>Możliwe czasowo</span>${probVal}: krótkie pogorszenie.`;
-            if (raw.includes("BECMG")) return `🔄 <span class='text-blue-300 font-bold uppercase'>W zmianie</span>: pogoda ulegnie stałej zmianie.`;
-            return "✅ <span class='text-green-400 font-bold uppercase'>Prognoza stała</span>: brak zmian w depeszy.";
+            if (raw.includes("TEMPO")) return `⚠️ <span class='text-blue-400 font-bold uppercase'>Możliwe czasowo</span>${probVal}`;
+            if (raw.includes("BECMG")) return `🔄 <span class='text-blue-300 font-bold uppercase'>W zmianie</span>`;
+            return "✅ <span class='text-green-400 font-bold uppercase'>Prognoza stała</span>";
         }
 
         async function fetchMetar() {
@@ -257,7 +275,6 @@
                 const tData = (await tafRes.json()).data?.[0];
 
                 if(!mData) throw new Error("Station not found");
-
                 document.getElementById('station-name').innerText = mData.station.name;
                 
                 updateUI({
@@ -265,10 +282,7 @@
                     visibility: mData?.visibility?.meters ?? 9999, temp: mData?.temperature?.celsius ?? "--", qnh: mData?.barometer?.hpa ?? "--",
                     taf: tData?.raw_text || "Prognoza niedostępna"
                 }, "LIVE");
-            } catch (error) { 
-                console.error(error);
-                updateUI(generateDemo(), "DEMO"); 
-            }
+            } catch (error) { updateUI(generateDemo(), "DEMO"); }
             finally { setLoading(false); }
         }
 
@@ -277,9 +291,8 @@
             const isDanger = data.wind_spd >= 30 || data.wind_gust >= 30;
             if (isDanger) { windCard.classList.add('wind-alarm-active'); windIcon.className = "bi bi-exclamation-triangle-fill text-red-500 text-4xl animate-bounce"; }
             else { windCard.classList.remove('wind-alarm-active'); windIcon.className = "bi bi-arrow-up text-blue-400 text-4xl"; }
-            let windDesc = `${data.wind_dir}° / ${data.wind_spd}`;
-            if(data.wind_gust > 0) windDesc += `-${data.wind_gust}`;
-            document.getElementById('wind').innerHTML = `${windDesc} KT <span class="text-blue-400 text-lg">(${Math.round(data.wind_spd*1.85)} km/h)</span>`;
+            
+            document.getElementById('wind').innerHTML = `${data.wind_dir}° / ${data.wind_spd}${data.wind_gust > 0 ? '-'+data.wind_gust : ''} KT`;
             document.getElementById('raw-metar').innerText = "METAR: " + data.raw;
             document.getElementById('tooltip-metar').innerText = data.raw;
             document.getElementById('vis').innerText = data.visibility >= 9999 ? ">10 km" : `${data.visibility} m`;
@@ -299,13 +312,13 @@
                 document.getElementById('status-dot').className = "w-3 h-3 rounded-full live-dot active";
                 document.getElementById('status-text').innerText = "LIVE";
                 bar.className = `w-full h-2 absolute top-0 left-0 transition-all duration-1000 ${age.min < 45 ? 'bg-green-500 shadow-[0_0_15px_#22c55e]' : 'bg-red-500'}`;
-            } else { document.getElementById('status-text').innerText = "STATION NOT FOUND / DEMO"; bar.className = "w-full h-2 bg-orange-500 absolute top-0 left-0"; }
+            } else { document.getElementById('status-text').innerText = "ERROR / DEMO"; bar.className = "w-full h-2 bg-orange-500 absolute top-0 left-0"; }
         }
 
         function updateFlightCategory(vis, raw) {
             const card = document.getElementById('flight-category-card');
             const isIFR = vis < 5000 || raw.match(/(BKN|OVC)0(0\d|1[0-5])/);
-            document.getElementById('flight-category-text').innerText = isIFR ? "IFR (Instrumentalne)" : "VFR (Wizualne)";
+            document.getElementById('flight-category-text').innerText = isIFR ? "IFR" : "VFR";
             card.className = isIFR ? "p-5 rounded-[2rem] border border-red-500/30 bg-red-500/10 text-red-400 text-center" : "p-5 rounded-[2rem] border border-green-500/30 bg-green-500/10 text-green-400 text-center";
         }
 
@@ -314,6 +327,7 @@
             let icon = "bi-cloud-fill", color = "text-slate-400", text = "Zachmurzenie";
             if (raw.includes("TS")) { icon="bi-cloud-lightning-rain-fill"; color="text-yellow-400"; text="Burza"; }
             else if (raw.includes("RA")) { icon="bi-cloud-drizzle-fill"; color="text-blue-400"; text="Deszcz"; }
+            else if (raw.includes("FG") || raw.includes("BR")) { icon="bi-cloud-fog2-fill"; color="text-slate-300"; text="Mgła/Zamglenie"; }
             else if (raw.includes("CAVOK") || raw.includes("SKC")) { icon="bi-sun-fill"; color="text-yellow-500"; text="Czyste niebo"; }
             iconEl.className = `bi ${icon} text-8xl ${color}`;
             descEl.innerText = text;
@@ -325,10 +339,10 @@
             const now = new Date();
             const report = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), parseInt(match[1]), parseInt(match[2]), parseInt(match[3])));
             const diff = Math.floor((now - report) / 60000);
-            return { text: `RAPORT SPRZED ${diff} MIN`, min: diff };
+            return { text: `SPRZED ${diff} MIN`, min: diff };
         }
 
-        function generateDemo() { return { raw: "STATION NOT FOUND", wind_dir: 0, wind_spd: 0, wind_gust: 0, visibility: 0, temp: 0, qnh: 0, taf: "INVALID ICAO CODE" }; }
+        function generateDemo() { return { raw: "OFFLINE", wind_dir: 0, wind_spd: 0, wind_gust: 0, visibility: 0, temp: 0, qnh: 0, taf: "DEMO" }; }
         function setLoading(s) { const btn = document.querySelector('.bi-arrow-repeat'); if(btn) s ? btn.classList.add('spin-anim') : setTimeout(()=>btn.classList.remove('spin-anim'), 600); }
 
         setInterval(fetchMetar, 600000);
