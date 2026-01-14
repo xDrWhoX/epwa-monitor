@@ -41,8 +41,8 @@
         .tooltip-box {
             visibility: hidden; opacity: 0; position: fixed; bottom: 120px; left: 50%;
             transform: translateX(-50%); background: rgba(15, 23, 42, 0.98); border: 2px solid #3b82f6;
-            padding: 30px; border-radius: 2rem; color: white; z-index: 100; width: 90%;
-            max-width: 800px; transition: all 0.2s ease-out; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            padding: 30px; border-radius: 2rem; color: white; z-index: 100; width: 95%;
+            max-width: 900px; transition: all 0.2s ease-out; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
             pointer-events: none; backdrop-filter: blur(12px);
         }
         .has-tooltip:hover .tooltip-box { visibility: visible; opacity: 1; bottom: 140px; }
@@ -159,14 +159,14 @@
                     <p id="raw-metar" class="text-slate-400 italic text-sm">METAR: ...</p>
                     <div class="tooltip-box">
                         <p class="text-blue-400 text-xs font-bold uppercase mb-3">Pełna depesza METAR</p>
-                        <p id="tooltip-metar" class="text-4xl font-bold mono tracking-tight text-white leading-relaxed">---</p>
+                        <p id="tooltip-metar" class="text-2xl font-bold mono tracking-tight text-white leading-relaxed">---</p>
                     </div>
                 </div>
                 <div class="has-tooltip cursor-help border-t border-slate-800/50 pt-3">
                     <p id="taf-text" class="text-slate-600 text-sm">TAF: ---</p>
                     <div class="tooltip-box">
                         <p class="text-blue-400 text-xs font-bold uppercase mb-3">Pełna depesza TAF</p>
-                        <p id="tooltip-taf" class="text-4xl font-bold mono tracking-tight text-white leading-relaxed">---</p>
+                        <p id="tooltip-taf" class="text-2xl font-bold mono tracking-tight text-white leading-relaxed">---</p>
                     </div>
                 </div>
             </div>
@@ -240,8 +240,6 @@
             container.innerHTML = "";
             const sections = raw.split(/(TEMPO|BECMG|PROB\d{2})/);
             const mainSection = sections[0];
-            
-            // Pobieranie prawdopodobieństwa PROB dla ikon zmian
             const probMatch = raw.match(/PROB(\d{2})/);
             const probVal = probMatch ? probMatch[1] + "%" : "";
 
@@ -252,7 +250,6 @@
                 else if (raw.includes(c.key)) { 
                     colorClass = "text-blue-400"; 
                     isActive = true;
-                    // Sprawdź czy zjawisko jest w sekcji z PROB
                     if (probVal && raw.split(/PROB\d{2}/)[1]?.includes(c.key)) showProb = true;
                 }
                 
@@ -283,7 +280,6 @@
                 const phenomena = parsePhenomena(part);
                 
                 if (phenomena.length > 0) {
-                    // Dodaj % do każdego zjawiska w opisie tekstowym jeśli PROB istnieje
                     const detailedPhenomena = probMatch ? phenomena.map(p => `${p}${probStr}`) : phenomena;
                     detailEl.innerText = detailedPhenomena.join(" • ");
                 }
